@@ -1,74 +1,259 @@
-import { useState } from "react";
+import { useState, ChangeEvent, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Palette, 
-  Layers, 
-  Type, 
-  Settings, 
-  Sparkles, 
-  Circle, 
-  Square, 
-  AlignLeft, 
-  AlignCenter, 
-  AlignRight, 
+import {
+  Palette,
+  Layers,
+  Type,
+  Settings,
+  Sparkles,
+  Circle,
+  Square,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   AlignJustify,
   ChevronUp,
   ChevronDown,
   RotateCcw,
-  Sliders,
   X,
-  Box
+  Box,
+  LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+
+// --- Típusdefiníciók ---
+interface CardBorderRadius {
+  topLeft?: string;
+  topRight?: string;
+  bottomLeft?: string;
+  bottomRight?: string;
+  unit?: "px" | "%" | "em" | "rem";
+}
+
+interface ShadowSettings {
+  x?: string;
+  y?: string;
+  blur?: string;
+  spread?: string;
+}
+
+interface CardSettings {
+  // Style
+  bgGradientFrom?: string;
+  bgGradientTo?: string;
+  cardOpacity?: number; // Percentage 0-100
+  cardBorderRadius?: CardBorderRadius;
+  enableHoverEffects?: boolean; // Glassmorphism switch
+  cardWidth?: string; // e.g., "300" (value for px)
+  cardHeight?: string; // e.g., "200" (value for px)
+
+  // Gradient
+  bgOpacityFrom?: string; // e.g., "100" (percentage)
+  bgOpacityTo?: string; // e.g., "100" (percentage)
+  gradientAngle?: number; // 0-359 degrees
+
+  // Shadow
+  shadowSettings?: ShadowSettings;
+  shadowColor?: string;
+  shadowOpacity?: string; // e.g., "0.25" (0-1)
+
+  // Text
+  titleFont?: string;
+  titleWeight?: string;
+  titleSize?: number; // px
+  titleAlign?: "left" | "center" | "right" | "justify";
+  descriptionFont?: string;
+  descriptionWeight?: string;
+  descriptionSize?: number; // px
+  descriptionAlign?: "left" | "center" | "right" | "justify";
+
+  // Effects
+  rotation?: number; // degrees
+  scaleX?: number; // e.g., 1, 1.5
+  scaleY?: number; // e.g., 1, 1.5
+  blur?: number; // filter blur (px)
+  brightness?: number; // %
+  contrast?: number; // %
+  saturation?: number; // %
+
+  // Presets (these are combinations of the above properties)
+  enableAnimations?: boolean; // e.g., for Neon Glow preset
+}
 
 interface DockbarProps {
-  activeCard?: any;
-  updateCard?: (updates: any) => void;
+  activeCard?: Partial<CardSettings>; // Allow partial for initial state
+  updateCard: (updates: Partial<CardSettings>) => void;
 }
+
+// --- Belső UI Komponensek ---
+interface LabeledSliderProps {
+  label: string;
+  value: number;
+  onValueChange: (value: number) => void;
+  min?: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  className?: string;
+}
+
+const LabeledSlider = ({
+  label,
+  value,
+  onValueChange,
+  min = 0,
+  max,
+  step = 1,
+  unit = "",
+  className = "",
+}: LabeledSliderProps) => (
+  <div className={className}>
+    <div className="flex items-center justify-between mb-1">
+      <span className="text-gray-400 text-sm">{label}</span>
+      <span className="text-purple-400 font-medium text-sm min-w-[40px] text-right">
+        {value}
+        {unit}
+      </span>
+    </div>
+    <Slider
+      value={[value]}
+      onValueChange={([val]) => onValueChange(val)}
+      min={min}
+      max={max}
+      step={step}
+      className="my-1" // Add some margin for better spacing
+    />
+  </div>
+);
+
+interface ColorInputProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}
+const ColorInput = ({
+  label,
+  value,
+  onChange,
+  className = "",
+}: ColorInputProps) => (
+  <div className={`space-y-1 ${className}`}>
+    <span className="text-white font-medium text-sm block">{label}</span>
+    <input
+      type="color"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full h-10 rounded-lg border-2 border-purple-500/50 cursor-pointer bg-transparent p-0.5" // Adjusted padding and height
+      aria-label={`${label} color picker`}
+    />
+  </div>
+);
+
+interface SectionHeaderProps {
+  icon: LucideIcon;
+  title: string;
+  iconColorClass?: string;
+}
+const SectionHeader = ({
+  icon: Icon,
+  title,
+  iconColorClass = "text-purple-400",
+}: SectionHeaderProps) => (
+  <div className="flex items-center gap-2 mb-3 pt-2 border-t border-white/10 first:border-t-0 first:pt-0">
+    <Icon className={`w-4 h-4 ${iconColorClass}`} />
+    <span className="text-white font-medium">{title}</span>
+  </div>
+);
 
 const DOCK_TOOLS = [
   { id: "style", icon: Palette, label: "Style Controls", color: "blue" },
   { id: "gradient", icon: Layers, label: "Gradient Builder", color: "orange" },
-  { id: "shadow", icon: Box, label: "3D Shadow", color: "green" },
+  { id: "shadow", icon: Box, label: "Shadow & Depth", color: "green" }, // Updated label
   { id: "text", icon: Type, label: "Typography", color: "teal" },
   { id: "effects", icon: Sparkles, label: "Advanced Effects", color: "pink" },
   { id: "presets", icon: Settings, label: "Smart Presets", color: "purple" },
 ];
 
-export default function Dockbar({ activeCard = {}, updateCard = () => {} }: DockbarProps) {
+const DEFAULT_CARD_SETTINGS: CardSettings = {
+  bgGradientFrom: "#3b82f6",
+  bgGradientTo: "#8b5cf6",
+  cardOpacity: 100,
+  cardBorderRadius: {
+    topLeft: "12",
+    topRight: "12",
+    bottomLeft: "12",
+    bottomRight: "12",
+    unit: "px",
+  },
+  enableHoverEffects: false,
+  cardWidth: "300",
+  cardHeight: "200",
+  bgOpacityFrom: "100",
+  bgOpacityTo: "100",
+  gradientAngle: 135,
+  shadowSettings: { x: "0", y: "10", blur: "20", spread: "0" },
+  shadowColor: "#000000",
+  shadowOpacity: "0.25",
+  titleFont: "Inter",
+  titleWeight: "600",
+  titleSize: 18,
+  titleAlign: "left",
+  descriptionFont: "Inter",
+  descriptionWeight: "400",
+  descriptionSize: 14,
+  descriptionAlign: "left",
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  blur: 0,
+  brightness: 100,
+  contrast: 100,
+  saturation: 100,
+  enableAnimations: false,
+};
+
+export default function Dockbar({ activeCard, updateCard }: DockbarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTool, setActiveTool] = useState("style");
-  const [gradientAngle, setGradientAngle] = useState(135);
 
-  const toggleExpanded = () => {
-    setIsExpanded(!isExpanded);
-  };
+  const card: CardSettings = { ...DEFAULT_CARD_SETTINGS, ...activeCard };
+
+  const toggleExpanded = () => setIsExpanded(!isExpanded);
 
   const selectTool = (toolId: string) => {
     setActiveTool(toolId);
-    if (!isExpanded) {
+    if (!isExpanded && DOCK_TOOLS.find((t) => t.id === toolId)) {
       setIsExpanded(true);
     }
   };
 
-  const dockStyle = {
-    position: 'fixed' as const,
-    bottom: '24px',
-    left: '50%',
+  const dockStyle: React.CSSProperties = {
+    position: "fixed",
+    bottom: "24px",
+    left: "50%",
     zIndex: 50,
-    display: 'flex',
-    gap: '8px',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    padding: '8px',
-    background: 'linear-gradient(181deg, rgba(0, 0, 0, 0.1) 4.5%, rgba(255, 255, 255, 0.03) 99.51%)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.06)',
-    borderRadius: 'calc(12px + 8px)',
+    display: "flex",
+    gap: "8px",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    padding: "8px",
+    background:
+      "linear-gradient(181deg, rgba(0, 0, 0, 0.1) 4.5%, rgba(255, 255, 255, 0.03) 99.51%)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    border: "1px solid rgba(255, 255, 255, 0.06)",
+    borderRadius: "20px", // calc(12px + 8px)
     boxShadow: `
       0 0 1px 0 rgba(0, 0, 0, 0.2),
       0 2px 2px 0 rgba(0, 0, 0, 0.17),
@@ -78,541 +263,642 @@ export default function Dockbar({ activeCard = {}, updateCard = () => {} }: Dock
       0 4px 4px 0 rgba(0, 0, 0, 0.25),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.1)
     `,
-    transform: 'translate3d(-50%, 0, 0)',
-    userSelect: 'none' as const,
+    transform: "translate3d(-50%, 0, 0)",
+    userSelect: "none",
   };
 
-  const toolButtonStyle = (tool: any, isActive: boolean) => ({
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '48px',
-    height: '48px',
-    borderRadius: '12px',
-    border: 'none',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    background: isActive 
-      ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1))'
-      : 'transparent',
-    backdropFilter: isActive ? 'blur(10px)' : 'none',
-    color: '#ffffff',
-    fontSize: '0',
-    outline: 'none',
-    transform: isActive ? 'scale(1.05)' : 'scale(1)',
-    boxShadow: isActive 
-      ? 'inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 2px 8px 0 rgba(0, 0, 0, 0.3)'
-      : 'none',
+  const toolButtonStyle = (isActive: boolean): React.CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "48px",
+    height: "48px",
+    borderRadius: "12px",
+    border: "none",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    background: isActive
+      ? "linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1))"
+      : "transparent",
+    backdropFilter: isActive ? "blur(10px)" : "none",
+    color: "#ffffff",
+    fontSize: "0",
+    outline: "none",
+    transform: isActive ? "scale(1.05)" : "scale(1)",
+    boxShadow: isActive
+      ? "inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 2px 8px 0 rgba(0, 0, 0, 0.3)"
+      : "none",
   });
 
-  const expandButtonStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
-    border: 'none',
-    cursor: 'pointer',
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#ffffff',
-    transition: 'all 0.2s ease',
-    outline: 'none',
+  const expandButtonStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "32px",
+    height: "32px",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+    background: "rgba(255, 255, 255, 0.1)",
+    color: "#ffffff",
+    transition: "all 0.2s ease",
+    outline: "none",
   };
 
-  const getColorForTool = (toolId: string) => {
-    const colorMap = {
-      style: 'from-blue-500 to-purple-600',
-      gradient: 'from-pink-500 to-orange-500',
-      shadow: 'from-green-500 to-teal-500',
-      text: 'from-teal-500 to-cyan-500',
-      effects: 'from-pink-600 to-red-500',
-      presets: 'from-purple-500 to-blue-600'
-    };
-    return colorMap[toolId as keyof typeof colorMap] || 'from-gray-500 to-gray-600';
-  };
-
-  const panelStyle = {
-    position: 'absolute' as const,
-    bottom: '100%',
-    left: '0',
-    right: '0',
-    marginBottom: '12px',
-    background: 'linear-gradient(181deg, rgba(0, 0, 0, 0.15) 4.5%, rgba(255, 255, 255, 0.05) 99.51%)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
-    borderRadius: '16px',
-    color: '#ffffff',
-    minWidth: '400px',
-    maxHeight: '500px',
-    overflowY: 'auto' as const,
+  const panelStyle: React.CSSProperties = {
+    position: "absolute",
+    bottom: "100%",
+    left: "0",
+    right: "0",
+    marginBottom: "12px",
+    background:
+      "linear-gradient(181deg, rgba(0, 0, 0, 0.2) 4.5%, rgba(255, 255, 255, 0.07) 99.51%)", // Slightly darker background
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    border: "1px solid rgba(255, 255, 255, 0.08)",
+    borderRadius: "16px",
+    color: "#ffffff",
+    minWidth: "420px", // Slightly wider
+    maxHeight: "calc(100vh - 150px)", // Ensure it doesn't go off-screen
+    overflowY: "auto",
     boxShadow: `
       0 8px 32px 0 rgba(0, 0, 0, 0.4),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.1)
     `,
   };
 
-  // Get the current active tool data
-  const currentTool = DOCK_TOOLS.find(t => t.id === activeTool);
-  const ToolIcon = currentTool?.icon;
+  const getColorForToolHeader = (toolId: string): string => {
+    const colorMap: { [key: string]: string } = {
+      style: "from-blue-500/70 to-purple-600/70",
+      gradient: "from-pink-500/70 to-orange-500/70",
+      shadow: "from-green-500/70 to-teal-500/70",
+      text: "from-teal-500/70 to-cyan-500/70",
+      effects: "from-pink-600/70 to-red-500/70",
+      presets: "from-purple-500/70 to-blue-600/70",
+    };
+    return colorMap[toolId] || "from-gray-500/70 to-gray-600/70";
+  };
+
+  const currentToolData = DOCK_TOOLS.find((t) => t.id === activeTool);
+  const ToolIcon = currentToolData?.icon;
+
+  const getUniformBorderRadius = (): number => {
+    const br = card.cardBorderRadius;
+    return parseInt(
+      br?.topLeft || DEFAULT_CARD_SETTINGS.cardBorderRadius!.topLeft!,
+    );
+  };
+
+  const updateUniformBorderRadius = (value: number) => {
+    const strValue = value.toString();
+    updateCard({
+      cardBorderRadius: {
+        topLeft: strValue,
+        topRight: strValue,
+        bottomLeft: strValue,
+        bottomRight: strValue,
+        unit: card.cardBorderRadius?.unit || "px",
+      },
+    });
+  };
+
+  const handleGradientAngleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    let newAngle = parseInt(e.target.value, 10);
+    if (isNaN(newAngle)) newAngle = 0;
+    newAngle = Math.max(0, Math.min(359, newAngle));
+    updateCard({ gradientAngle: newAngle });
+  };
+
+  const rotateGradientAngle = () => {
+    const currentAngle =
+      card.gradientAngle ?? DEFAULT_CARD_SETTINGS.gradientAngle!;
+    const newAngle = (currentAngle + 45) % 360;
+    updateCard({ gradientAngle: newAngle });
+  };
 
   return (
-    <div style={dockStyle}>
-      {/* Main Dock */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <div style={dockStyle} role="toolbar" aria-label="Card editor dockbar">
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         {DOCK_TOOLS.map((tool) => (
           <button
             key={tool.id}
-            style={toolButtonStyle(tool, activeTool === tool.id)}
+            style={toolButtonStyle(activeTool === tool.id)}
             onClick={() => selectTool(tool.id)}
             title={tool.label}
+            aria-label={tool.label}
+            aria-pressed={activeTool === tool.id}
             onMouseEnter={(e) => {
               if (activeTool !== tool.id) {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                e.currentTarget.style.transform = 'scale(1.02)';
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                e.currentTarget.style.transform = "scale(1.02)";
               }
             }}
             onMouseLeave={(e) => {
               if (activeTool !== tool.id) {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.transform = "scale(1)";
               }
             }}
           >
-            <tool.icon size={20} />
+            <tool.icon size={20} aria-hidden="true" />
           </button>
         ))}
-        
-        <div style={{ width: '1px', height: '32px', background: 'rgba(255, 255, 255, 0.1)', margin: '0 4px' }} />
-        
+
+        <div
+          style={{
+            width: "1px",
+            height: "32px",
+            background: "rgba(255, 255, 255, 0.1)",
+            margin: "0 4px",
+          }}
+        />
+
         <button
           style={expandButtonStyle}
           onClick={toggleExpanded}
-          title={isExpanded ? "Collapse" : "Expand"}
+          title={isExpanded ? "Collapse panel" : "Expand panel"}
+          aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+          aria-expanded={isExpanded}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)";
+            e.currentTarget.style.transform = "scale(1.05)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+            e.currentTarget.style.transform = "scale(1)";
           }}
         >
-          {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          {isExpanded ? (
+            <ChevronDown size={16} aria-hidden="true" />
+          ) : (
+            <ChevronUp size={16} aria-hidden="true" />
+          )}
         </button>
       </div>
 
-      {/* Expanded Panel */}
       <AnimatePresence>
-        {isExpanded && (
+        {isExpanded && currentToolData && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }} // Slightly more pronounced animation
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ 
-              type: "spring", 
-              damping: 20, 
-              stiffness: 300,
-              duration: 0.3
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{
+              type: "spring",
+              damping: 25,
+              stiffness: 350,
+              duration: 0.3,
             }}
             style={panelStyle}
+            role="dialog"
+            aria-labelledby="dockbar-panel-title"
           >
-            {/* Panel Header */}
-            <div className={`bg-gradient-to-r ${getColorForTool(activeTool)} p-6 relative overflow-hidden`}>
-              <div className="absolute inset-0 bg-black/20"></div>
+            <div
+              className={`bg-gradient-to-r ${getColorForToolHeader(activeTool)} p-5 sticky top-0 z-10`}
+            >
+              {" "}
+              {/* Reduced padding, sticky header */}
+              <div
+                className="absolute inset-0 bg-black/30"
+                aria-hidden="true"
+              ></div>{" "}
+              {/* Slightly darker overlay */}
               <div className="relative z-10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-lg">
-                    {ToolIcon && <ToolIcon className="w-5 h-5 text-white" />}
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                    {" "}
+                    {/* Added backdrop blur to icon bg */}
+                    {ToolIcon && (
+                      <ToolIcon
+                        className="w-5 h-5 text-white"
+                        aria-hidden="true"
+                      />
+                    )}
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">
-                      {currentTool?.label}
+                    <h3
+                      id="dockbar-panel-title"
+                      className="text-md font-semibold text-white"
+                    >
+                      {" "}
+                      {/* Reduced font size */}
+                      {currentToolData.label}
                     </h3>
-                    <p className="text-white/80 text-sm">Customize your card design</p>
+                    <p className="text-white/70 text-xs">Customize your card</p>{" "}
+                    {/* Reduced font size */}
                   </div>
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setIsExpanded(false)}
-                  className="text-white/80 hover:text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+                  className="text-white/70 hover:text-white hover:bg-white/20 rounded-full p-1.5 transition-colors" // Rounder button
+                  aria-label="Close panel"
                 >
-                  <X className="h-5 w-5" />
-                </button>
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
-            {/* Panel Content */}
-            <div className="p-6 space-y-6">
+            <div className="p-5 space-y-5">
+              {" "}
+              {/* Reduced padding and spacing */}
               {activeTool === "style" && (
-                <div className="space-y-6">
-                  {/* Background Type */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Circle className="w-4 h-4 text-purple-400" />
-                      <span className="text-white font-medium">Background Type</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button className="p-4 bg-purple-600/20 border border-purple-500/50 rounded-xl text-center hover:bg-purple-600/30 transition-colors">
-                        <Circle className="w-6 h-6 mx-auto mb-2 text-purple-400" />
-                        <div className="text-white text-sm font-medium">Solid</div>
-                        <div className="text-gray-400 text-xs">Single color</div>
-                      </button>
-                      <button 
-                        onClick={() => selectTool('gradient')}
-                        className="p-4 bg-gray-800 border border-gray-600 rounded-xl text-center hover:bg-gray-700 transition-colors"
-                      >
-                        <Square className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                        <div className="text-white text-sm font-medium">Gradient</div>
-                        <div className="text-gray-400 text-xs">Color blend</div>
-                      </button>
-                    </div>
+                <div className="space-y-5">
+                  <SectionHeader icon={Palette} title="Background" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant={!card.bgGradientTo ? "secondary" : "outline"}
+                      className="p-3 h-auto bg-purple-600/20 border-purple-500/50 text-white hover:bg-purple-600/30 flex flex-col items-center text-center"
+                      onClick={() => updateCard({ bgGradientTo: undefined })}
+                      aria-pressed={!card.bgGradientTo}
+                    >
+                      <Circle className="w-5 h-5 mb-1.5 text-purple-400" />
+                      <span className="text-xs font-medium">Solid Color</span>
+                      <span className="text-gray-400 text-[10px]">
+                        Single color
+                      </span>
+                    </Button>
+                    <Button
+                      variant={card.bgGradientTo ? "secondary" : "outline"}
+                      onClick={() => {
+                        selectTool("gradient");
+                        updateCard({
+                          bgGradientTo:
+                            card.bgGradientTo ||
+                            DEFAULT_CARD_SETTINGS.bgGradientTo,
+                        });
+                      }}
+                      className="p-3 h-auto bg-gray-700/50 border-gray-600/50 text-white hover:bg-gray-700/80 flex flex-col items-center text-center"
+                      aria-pressed={!!card.bgGradientTo}
+                    >
+                      <Square className="w-5 h-5 mb-1.5 text-gray-400" />
+                      <span className="text-xs font-medium">Gradient</span>
+                      <span className="text-gray-400 text-[10px]">
+                        Color blend
+                      </span>
+                    </Button>
                   </div>
 
-                  {/* Background Color */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Circle className="w-4 h-4 text-purple-400" />
-                      <span className="text-white font-medium">Background Color</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={activeCard.bgGradientFrom || "#3b82f6"}
-                        onChange={(e) => updateCard({ bgGradientFrom: e.target.value })}
-                        className="w-12 h-12 rounded-lg border-2 border-purple-500 cursor-pointer bg-transparent"
-                      />
-                      <div className="flex-1">
-                        <span className="text-gray-400 text-sm">Opacity</span>
-                        <div className="flex items-center gap-3 mt-2">
-                          <Slider
-                            value={[activeCard.cardOpacity || 100]}
-                            onValueChange={([value]) => updateCard({ cardOpacity: value })}
-                            max={100}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.cardOpacity || 100}%</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex items-start gap-3">
+                    <ColorInput
+                      label="Color"
+                      value={card.bgGradientFrom!}
+                      onChange={(val) => updateCard({ bgGradientFrom: val })}
+                      className="w-16"
+                    />
+                    <LabeledSlider
+                      label="Opacity"
+                      value={card.cardOpacity!}
+                      onValueChange={(val) => updateCard({ cardOpacity: val })}
+                      max={100}
+                      unit="%"
+                      className="flex-1"
+                    />
                   </div>
 
-                  {/* Border Radius */}
-                  <div className="space-y-3">
-                    <span className="text-white font-medium">Border Radius</span>
-                    <div className="bg-gray-800/50 p-4 rounded-xl">
-                      <span className="text-gray-400 text-sm">Roundness</span>
-                      <div className="flex items-center gap-3 mt-2">
-                        <Slider
-                          value={[parseInt(activeCard.cardBorderRadius?.topLeft || "12")]}
-                          onValueChange={([value]) =>
-                            updateCard({
-                              cardBorderRadius: {
-                                topLeft: value.toString(),
-                                topRight: value.toString(),
-                                bottomLeft: value.toString(),
-                                bottomRight: value.toString(),
-                                unit: "px"
-                              }
-                            })
-                          }
-                          max={50}
-                          className="flex-1"
-                        />
-                        <span className="text-white font-medium min-w-[40px]">{activeCard.cardBorderRadius?.topLeft || 12}px</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2 mt-3 text-xs text-gray-400">
-                        <span>0px</span>
-                        <span>8px</span>
-                        <span>16px</span>
-                        <span>32px</span>
-                      </div>
-                    </div>
-                  </div>
+                  <SectionHeader icon={Layers} title="Appearance" />
+                  <LabeledSlider
+                    label="Border Radius"
+                    value={getUniformBorderRadius()}
+                    onValueChange={updateUniformBorderRadius}
+                    max={60} // Increased max
+                    unit={card.cardBorderRadius?.unit || "px"}
+                  />
 
-                  {/* Special Effects */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-4 h-4 text-purple-400" />
-                      <span className="text-white font-medium">Special Effects</span>
-                    </div>
-                    <div className="bg-gray-800/50 p-4 rounded-xl">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Sparkles className="w-5 h-5 text-purple-400" />
-                          <div>
-                            <div className="text-white font-medium">Glassmorphism</div>
-                            <div className="text-gray-400 text-sm">Frosted glass effect</div>
+                  <div className="bg-gray-800/50 p-3.5 rounded-xl">
+                    {" "}
+                    {/* Reduced padding */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        {" "}
+                        {/* Reduced gap */}
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <div>
+                          <div className="text-white font-medium text-sm">
+                            Glassmorphism
+                          </div>
+                          <div className="text-gray-400 text-xs">
+                            Frosted glass effect
                           </div>
                         </div>
-                        <Switch 
-                          checked={activeCard.enableHoverEffects || false}
-                          onCheckedChange={(checked) => updateCard({ enableHoverEffects: checked })}
-                        />
                       </div>
+                      <Switch
+                        checked={card.enableHoverEffects}
+                        onCheckedChange={(checked) =>
+                          updateCard({ enableHoverEffects: checked })
+                        }
+                        aria-label="Toggle Glassmorphism effect"
+                      />
                     </div>
                   </div>
 
-                  {/* Dimensions */}
-                  <div className="space-y-3">
-                    <span className="text-white font-medium">Dimensions</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <span className="text-gray-400 text-sm">Width</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[parseInt(activeCard.cardWidth) || 300]}
-                            onValueChange={([value]) => updateCard({ cardWidth: value.toString() })}
-                            min={200}
-                            max={600}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[50px]">{activeCard.cardWidth || 300}px</span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 text-sm">Height</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[parseInt(activeCard.cardHeight) || 200]}
-                            onValueChange={([value]) => updateCard({ cardHeight: value.toString() })}
-                            min={150}
-                            max={400}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[50px]">{activeCard.cardHeight || 200}px</span>
-                        </div>
-                      </div>
-                    </div>
+                  <SectionHeader icon={Box} title="Dimensions" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <LabeledSlider
+                      label="Width"
+                      value={parseInt(card.cardWidth!)}
+                      onValueChange={(val) =>
+                        updateCard({ cardWidth: val.toString() })
+                      }
+                      min={150} // Adjusted min
+                      max={800} // Adjusted max
+                      unit="px"
+                    />
+                    <LabeledSlider
+                      label="Height"
+                      value={parseInt(card.cardHeight!)}
+                      onValueChange={(val) =>
+                        updateCard({ cardHeight: val.toString() })
+                      }
+                      min={100} // Adjusted min
+                      max={600} // Adjusted max
+                      unit="px"
+                    />
                   </div>
                 </div>
               )}
-
               {activeTool === "gradient" && (
-                <div className="space-y-6">
-                  {/* Gradient Preview */}
-                  <div className="space-y-3">
-                    <span className="text-white font-medium">Gradient Preview</span>
-                    <div 
-                      className="w-full h-20 rounded-xl border border-gray-600"
-                      style={{
-                        background: `linear-gradient(${gradientAngle}deg, ${activeCard.bgGradientFrom || "#667eea"}, ${activeCard.bgGradientTo || "#764ba2"})`
-                      }}
-                    ></div>
+                <div className="space-y-5">
+                  <SectionHeader
+                    icon={Layers}
+                    title="Gradient Setup"
+                    iconColorClass="text-orange-400"
+                  />
+                  <div
+                    className="w-full h-20 rounded-xl border border-gray-600/50"
+                    style={{
+                      background: `linear-gradient(${card.gradientAngle}deg, ${card.bgGradientFrom}${Math.round(
+                        parseInt(card.bgOpacityFrom!) * 2.55,
+                      )
+                        .toString(16)
+                        .padStart(2, "0")}, ${card.bgGradientTo}${Math.round(
+                        parseInt(card.bgOpacityTo!) * 2.55,
+                      )
+                        .toString(16)
+                        .padStart(2, "0")})`,
+                    }}
+                    aria-label="Gradient preview"
+                  ></div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <ColorInput
+                        label="Start Color"
+                        value={card.bgGradientFrom!}
+                        onChange={(val) => updateCard({ bgGradientFrom: val })}
+                      />
+                      <LabeledSlider
+                        label="Start Opacity"
+                        value={parseInt(card.bgOpacityFrom!)}
+                        onValueChange={(val) =>
+                          updateCard({ bgOpacityFrom: val.toString() })
+                        }
+                        max={100}
+                        unit="%"
+                        className="mt-2"
+                      />
+                    </div>
+                    <div>
+                      <ColorInput
+                        label="End Color"
+                        value={card.bgGradientTo!}
+                        onChange={(val) => updateCard({ bgGradientTo: val })}
+                      />
+                      <LabeledSlider
+                        label="End Opacity"
+                        value={parseInt(card.bgOpacityTo!)}
+                        onValueChange={(val) =>
+                          updateCard({ bgOpacityTo: val.toString() })
+                        }
+                        max={100}
+                        unit="%"
+                        className="mt-2"
+                      />
+                    </div>
                   </div>
 
-                  {/* Start and End Colors */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                      <span className="text-white font-medium">Start Color</span>
-                      <input
-                        type="color"
-                        value={activeCard.bgGradientFrom || "#667eea"}
-                        onChange={(e) => updateCard({ bgGradientFrom: e.target.value })}
-                        className="w-full h-12 rounded-lg border-2 border-purple-500 cursor-pointer bg-transparent"
-                      />
-                      <div className="flex items-center gap-2 mt-2">
-                        <Slider
-                          value={[parseInt(activeCard.bgOpacityFrom || "100")]}
-                          onValueChange={([value]) => updateCard({ bgOpacityFrom: value.toString() })}
-                          max={100}
-                          className="flex-1"
-                        />
-                        <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.bgOpacityFrom || 100}%</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <span className="text-white font-medium">End Color</span>
-                      <input
-                        type="color"
-                        value={activeCard.bgGradientTo || "#764ba2"}
-                        onChange={(e) => updateCard({ bgGradientTo: e.target.value })}
-                        className="w-full h-12 rounded-lg border-2 border-purple-500 cursor-pointer bg-transparent"
-                      />
-                      <div className="flex items-center gap-2 mt-2">
-                        <Slider
-                          value={[parseInt(activeCard.bgOpacityTo || "100")]}
-                          onValueChange={([value]) => updateCard({ bgOpacityTo: value.toString() })}
-                          max={100}
-                          className="flex-1"
-                        />
-                        <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.bgOpacityTo || 100}%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Gradient Direction */}
-                  <div className="space-y-3">
-                    <span className="text-white font-medium">Gradient Direction</span>
-                    <div className="flex items-center justify-center">
-                      <div className="relative w-32 h-32 bg-gray-800 rounded-full border border-gray-600">
-                        <div 
-                          className="absolute top-1/2 left-1/2 w-16 h-1 bg-purple-500 rounded-full transform -translate-x-1/2 -translate-y-1/2 origin-center cursor-pointer"
-                          style={{ transform: `translate(-50%, -50%) rotate(${gradientAngle}deg)` }}
-                          onClick={() => {
-                            const newAngle = (gradientAngle + 45) % 360;
-                            setGradientAngle(newAngle);
+                  <div>
+                    <span className="text-white font-medium text-sm block mb-2">
+                      Gradient Direction
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-20 h-20 bg-gray-800/70 rounded-full border border-gray-600/50 flex-shrink-0">
+                        {" "}
+                        {/* Smaller rotator */}
+                        <button
+                          className="absolute top-1/2 left-1/2 w-10 h-0.5 bg-purple-500 rounded-full transform -translate-x-1/2 -translate-y-1/2 origin-center cursor-pointer group focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+                          style={{
+                            transform: `translate(-50%, -50%) rotate(${card.gradientAngle}deg)`,
                           }}
+                          onClick={rotateGradientAngle}
+                          aria-label={`Rotate gradient angle. Current angle ${card.gradientAngle} degrees. Click to increment by 45 degrees.`}
+                          title={`Current Angle: ${card.gradientAngle}° (Click to rotate by 45°)`}
                         >
-                          <div className="absolute right-0 top-1/2 w-3 h-3 bg-purple-400 rounded-full transform translate-x-1/2 -translate-y-1/2"></div>
-                        </div>
-                        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-white text-sm font-medium">
-                          {gradientAngle}°
-                        </div>
+                          <div className="absolute right-0 top-1/2 w-2.5 h-2.5 bg-purple-400 rounded-full transform translate-x-1/2 -translate-y-1/2 group-hover:scale-125 transition-transform"></div>
+                        </button>
+                      </div>
+                      <div className="flex-1">
+                        <LabeledSlider
+                          label="Angle"
+                          value={card.gradientAngle!}
+                          onValueChange={(val) =>
+                            updateCard({ gradientAngle: val })
+                          }
+                          max={359}
+                          unit="°"
+                        />
+                        <Input
+                          type="number"
+                          value={card.gradientAngle}
+                          onChange={handleGradientAngleChange}
+                          min="0"
+                          max="359"
+                          className="bg-gray-700 border-gray-600 text-white mt-2 w-full h-9 text-sm" // Smaller input
+                          aria-label="Gradient angle input"
+                        />
                       </div>
                     </div>
                   </div>
 
-                  {/* Preset Gradients */}
-                  <div className="space-y-3">
-                    <span className="text-white font-medium">Preset Gradients</span>
-                    <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-white font-medium text-sm block mb-2">
+                      Preset Gradients
+                    </span>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {" "}
+                      {/* Tighter gap */}
                       {[
-                        { from: "#667eea", to: "#764ba2" },
-                        { from: "#f093fb", to: "#f5576c" },
-                        { from: "#4facfe", to: "#00f2fe" },
-                        { from: "#43e97b", to: "#38f9d7" },
-                        { from: "#fa709a", to: "#fee140" },
-                        { from: "#a8edea", to: "#fed6e3" }
+                        {
+                          from: "#667eea",
+                          to: "#764ba2",
+                          name: "Royal Blue to Purple",
+                        },
+                        { from: "#f093fb", to: "#f5576c", name: "Pink to Red" },
+                        {
+                          from: "#4facfe",
+                          to: "#00f2fe",
+                          name: "Sky Blue to Cyan",
+                        },
+                        {
+                          from: "#43e97b",
+                          to: "#38f9d7",
+                          name: "Green to Mint",
+                        },
+                        {
+                          from: "#fa709a",
+                          to: "#fee140",
+                          name: "Rose to Gold",
+                        },
+                        {
+                          from: "#a8edea",
+                          to: "#fed6e3",
+                          name: "Aqua to Light Pink",
+                        },
                       ].map((preset, index) => (
                         <button
                           key={index}
-                          onClick={() => updateCard({ bgGradientFrom: preset.from, bgGradientTo: preset.to })}
-                          className="h-12 rounded-lg border border-gray-600 hover:border-purple-500 transition-colors"
-                          style={{ background: `linear-gradient(135deg, ${preset.from}, ${preset.to})` }}
+                          onClick={() =>
+                            updateCard({
+                              bgGradientFrom: preset.from,
+                              bgGradientTo: preset.to,
+                            })
+                          }
+                          className="h-10 rounded-md border border-gray-600/50 hover:border-purple-500/70 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 focus:ring-offset-gray-800" // Smaller height
+                          style={{
+                            background: `linear-gradient(135deg, ${preset.from}, ${preset.to})`,
+                          }}
+                          aria-label={`Apply preset gradient: ${preset.name}`}
+                          title={preset.name}
                         />
                       ))}
                     </div>
                   </div>
                 </div>
               )}
-
               {activeTool === "shadow" && (
-                <div className="space-y-6">
-                  {/* Primary Shadow */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white font-medium">Primary Shadow</span>
-                      <Switch defaultChecked />
-                    </div>
-                    
-                    {/* Shadow Position */}
-                    <div className="space-y-3">
-                      <span className="text-gray-400 text-sm">Shadow Position</span>
-                      <div className="flex items-center justify-center">
-                        <div className="relative w-32 h-32 bg-gray-800 rounded-lg border border-gray-600">
-                          <div className="absolute top-1/2 left-1/2 w-8 h-8 bg-purple-500 rounded transform -translate-x-1/2 -translate-y-1/2 cursor-pointer"></div>
-                          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-white text-xs">
-                            X: {activeCard.shadowSettings?.x || "0"}px, Y: {activeCard.shadowSettings?.y || "10"}px
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Blur and Spread */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-gray-400 text-sm">Blur</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[parseInt(activeCard.shadowSettings?.blur || "20")]}
-                            onValueChange={([value]) => updateCard({ 
-                              shadowSettings: { ...activeCard.shadowSettings, blur: value.toString() }
-                            })}
-                            max={100}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.shadowSettings?.blur || "20"}px</span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 text-sm">Spread</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[parseInt(activeCard.shadowSettings?.spread || "0")]}
-                            onValueChange={([value]) => updateCard({ 
-                              shadowSettings: { ...activeCard.shadowSettings, spread: value.toString() }
-                            })}
-                            max={50}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.shadowSettings?.spread || "0"}px</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Shadow Color and Opacity */}
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={activeCard.shadowColor || "#000000"}
-                        onChange={(e) => updateCard({ shadowColor: e.target.value })}
-                        className="w-12 h-12 rounded-lg border-2 border-purple-500 cursor-pointer bg-transparent"
-                      />
-                      <div className="flex-1">
-                        <span className="text-gray-400 text-sm">Opacity: {Math.round(parseFloat(activeCard.shadowOpacity || "0.25") * 100)}%</span>
-                        <Slider
-                          value={[Math.round(parseFloat(activeCard.shadowOpacity || "0.25") * 100)]}
-                          onValueChange={([value]) => updateCard({ shadowOpacity: (value / 100).toString() })}
-                          max={100}
-                          className="mt-2"
-                        />
-                      </div>
-                    </div>
+                <div className="space-y-5">
+                  <SectionHeader
+                    icon={Box}
+                    title="Shadow Properties"
+                    iconColorClass="text-green-400"
+                  />
+                  {/* <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium text-sm">Enable Shadow</span>
+                      <Switch defaultChecked={!!card.shadowSettings} onCheckedChange={(checked) => updateCard({ shadowSettings: checked ? DEFAULT_CARD_SETTINGS.shadowSettings : undefined })} aria-label="Toggle primary shadow" /> 
+                    </div> */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <LabeledSlider
+                      label="Offset X"
+                      value={parseInt(
+                        card.shadowSettings?.x ||
+                          DEFAULT_CARD_SETTINGS.shadowSettings!.x!,
+                      )}
+                      onValueChange={(val) =>
+                        updateCard({
+                          shadowSettings: {
+                            ...card.shadowSettings,
+                            x: val.toString(),
+                          },
+                        })
+                      }
+                      min={-50}
+                      max={50}
+                      unit="px"
+                    />
+                    <LabeledSlider
+                      label="Offset Y"
+                      value={parseInt(
+                        card.shadowSettings?.y ||
+                          DEFAULT_CARD_SETTINGS.shadowSettings!.y!,
+                      )}
+                      onValueChange={(val) =>
+                        updateCard({
+                          shadowSettings: {
+                            ...card.shadowSettings,
+                            y: val.toString(),
+                          },
+                        })
+                      }
+                      min={-50}
+                      max={50}
+                      unit="px"
+                    />
+                    <LabeledSlider
+                      label="Blur"
+                      value={parseInt(
+                        card.shadowSettings?.blur ||
+                          DEFAULT_CARD_SETTINGS.shadowSettings!.blur!,
+                      )}
+                      onValueChange={(val) =>
+                        updateCard({
+                          shadowSettings: {
+                            ...card.shadowSettings,
+                            blur: val.toString(),
+                          },
+                        })
+                      }
+                      max={100}
+                      unit="px"
+                    />
+                    <LabeledSlider
+                      label="Spread"
+                      value={parseInt(
+                        card.shadowSettings?.spread ||
+                          DEFAULT_CARD_SETTINGS.shadowSettings!.spread!,
+                      )}
+                      onValueChange={(val) =>
+                        updateCard({
+                          shadowSettings: {
+                            ...card.shadowSettings,
+                            spread: val.toString(),
+                          },
+                        })
+                      }
+                      min={-50}
+                      max={50}
+                      unit="px"
+                    />
                   </div>
-
-                  {/* Secondary Shadow */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white font-medium">Secondary Shadow</span>
-                      <Switch />
-                    </div>
-                    
-                    <div className="opacity-50 space-y-3">
-                      <div className="flex items-center justify-center">
-                        <div className="relative w-32 h-32 bg-gray-800 rounded-lg border border-gray-600">
-                          <div className="absolute top-1/2 left-1/2 w-8 h-8 bg-gray-600 rounded transform -translate-x-1/2 -translate-y-1/2"></div>
-                          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-gray-500 text-xs">
-                            X: 0px, Y: 4px
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-gray-500 text-sm">Blur</span>
-                          <Slider value={[6]} max={100} className="mt-1" disabled />
-                          <span className="text-gray-500 text-xs">6px</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 text-sm">Spread</span>
-                          <Slider value={[0]} max={50} className="mt-1" disabled />
-                          <span className="text-gray-500 text-xs">-1px</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex items-end gap-3">
+                    <ColorInput
+                      label="Color"
+                      value={card.shadowColor!}
+                      onChange={(val) => updateCard({ shadowColor: val })}
+                      className="w-16"
+                    />
+                    <LabeledSlider
+                      label="Opacity"
+                      value={Math.round(parseFloat(card.shadowOpacity!) * 100)}
+                      onValueChange={(val) =>
+                        updateCard({ shadowOpacity: (val / 100).toFixed(2) })
+                      }
+                      max={100}
+                      unit="%"
+                      className="flex-1"
+                    />
                   </div>
                 </div>
               )}
-
               {activeTool === "text" && (
-                <div className="space-y-6">
-                  {/* Typography Header */}
-                  <div className="flex items-center gap-2">
-                    <Type className="w-5 h-5 text-teal-400" />
-                    <span className="text-white font-medium">Typography</span>
-                  </div>
-
-                  {/* Title Settings */}
-                  <div className="bg-gray-800/50 p-4 rounded-xl space-y-4">
-                    <span className="text-white font-medium">Title Settings</span>
-                    
-                    <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-5">
+                  <SectionHeader
+                    icon={Type}
+                    title="Title"
+                    iconColorClass="text-teal-400"
+                  />
+                  <div className="bg-gray-800/50 p-3.5 rounded-xl space-y-3">
+                    <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <span className="text-gray-400 text-sm">Font Family</span>
-                        <Select value={activeCard.titleFont || "Inter"} onValueChange={(value) => updateCard({ titleFont: value })}>
-                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white mt-1">
+                        <span className="text-gray-400 text-xs block mb-0.5">
+                          Font Family
+                        </span>
+                        <Select
+                          value={card.titleFont}
+                          onValueChange={(value) =>
+                            updateCard({ titleFont: value })
+                          }
+                        >
+                          <SelectTrigger className="bg-gray-700/80 border-gray-600/70 text-white h-9 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -620,74 +906,114 @@ export default function Dockbar({ activeCard = {}, updateCard = () => {} }: Dock
                             <SelectItem value="Arial">Arial</SelectItem>
                             <SelectItem value="Helvetica">Helvetica</SelectItem>
                             <SelectItem value="Georgia">Georgia</SelectItem>
+                            <SelectItem value="Verdana">Verdana</SelectItem>
+                            <SelectItem value="Times New Roman">
+                              Times New Roman
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
-                        <span className="text-gray-400 text-sm">Font Weight</span>
-                        <Select value={activeCard.titleWeight || "600"} onValueChange={(value) => updateCard({ titleWeight: value })}>
-                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white mt-1">
+                        <span className="text-gray-400 text-xs block mb-0.5">
+                          Font Weight
+                        </span>
+                        <Select
+                          value={card.titleWeight}
+                          onValueChange={(value) =>
+                            updateCard({ titleWeight: value })
+                          }
+                        >
+                          <SelectTrigger className="bg-gray-700/80 border-gray-600/70 text-white h-9 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="300">Light</SelectItem>
                             <SelectItem value="400">Normal</SelectItem>
                             <SelectItem value="500">Medium</SelectItem>
                             <SelectItem value="600">Semibold</SelectItem>
                             <SelectItem value="700">Bold</SelectItem>
+                            <SelectItem value="800">ExtraBold</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <span className="text-gray-400 text-sm">Font Size</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[activeCard.titleSize || 18]}
-                            onValueChange={([value]) => updateCard({ titleSize: value })}
-                            min={12}
-                            max={48}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.titleSize || 18}px</span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 text-sm">Text Alignment</span>
-                        <div className="flex gap-1 mt-1">
-                          {[
-                            { icon: AlignLeft, value: "left" },
-                            { icon: AlignCenter, value: "center" },
-                            { icon: AlignRight, value: "right" },
-                            { icon: AlignJustify, value: "justify" }
-                          ].map(({ icon: Icon, value }) => (
-                            <button
-                              key={value}
-                              onClick={() => updateCard({ titleAlign: value })}
-                              className={`p-2 rounded border ${
-                                activeCard.titleAlign === value 
-                                  ? "bg-purple-600 border-purple-500" 
-                                  : "bg-gray-700 border-gray-600 hover:bg-gray-600"
-                              } transition-colors`}
-                            >
-                              <Icon className="w-4 h-4 text-white" />
-                            </button>
-                          ))}
-                        </div>
+                    <LabeledSlider
+                      label="Font Size"
+                      value={card.titleSize!}
+                      onValueChange={(val) => updateCard({ titleSize: val })}
+                      min={10}
+                      max={60}
+                      unit="px"
+                    />
+                    <div>
+                      <span className="text-gray-400 text-xs block mb-1">
+                        Alignment
+                      </span>
+                      <div className="flex gap-1">
+                        {[
+                          {
+                            icon: AlignLeft,
+                            value: "left",
+                            label: "Align left",
+                          },
+                          {
+                            icon: AlignCenter,
+                            value: "center",
+                            label: "Align center",
+                          },
+                          {
+                            icon: AlignRight,
+                            value: "right",
+                            label: "Align right",
+                          },
+                          {
+                            icon: AlignJustify,
+                            value: "justify",
+                            label: "Justify text",
+                          },
+                        ].map(({ icon: Icon, value, label }) => (
+                          <Button
+                            key={value}
+                            onClick={() =>
+                              updateCard({
+                                titleAlign: value as CardSettings["titleAlign"],
+                              })
+                            }
+                            variant={
+                              card.titleAlign === value
+                                ? "secondary"
+                                : "outline"
+                            }
+                            size="icon"
+                            className={`h-8 w-8 ${card.titleAlign === value ? "bg-purple-600/80 border-purple-500/70" : "bg-gray-700/70 border-gray-600/60 hover:bg-gray-600/80"}`}
+                            aria-label={label}
+                            aria-pressed={card.titleAlign === value}
+                          >
+                            <Icon className="w-3.5 h-3.5 text-white" />
+                          </Button>
+                        ))}
                       </div>
                     </div>
                   </div>
 
-                  {/* Description Settings */}
-                  <div className="bg-gray-800/50 p-4 rounded-xl space-y-4">
-                    <span className="text-white font-medium">Description Settings</span>
-                    
-                    <div className="grid grid-cols-2 gap-3">
+                  <SectionHeader
+                    icon={Type}
+                    title="Description"
+                    iconColorClass="text-teal-400"
+                  />
+                  <div className="bg-gray-800/50 p-3.5 rounded-xl space-y-3">
+                    <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <span className="text-gray-400 text-sm">Font Family</span>
-                        <Select value={activeCard.descriptionFont || "Inter"} onValueChange={(value) => updateCard({ descriptionFont: value })}>
-                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white mt-1">
+                        <span className="text-gray-400 text-xs block mb-0.5">
+                          Font Family
+                        </span>
+                        <Select
+                          value={card.descriptionFont}
+                          onValueChange={(value) =>
+                            updateCard({ descriptionFont: value })
+                          }
+                        >
+                          <SelectTrigger className="bg-gray-700/80 border-gray-600/70 text-white h-9 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -695,308 +1021,391 @@ export default function Dockbar({ activeCard = {}, updateCard = () => {} }: Dock
                             <SelectItem value="Arial">Arial</SelectItem>
                             <SelectItem value="Helvetica">Helvetica</SelectItem>
                             <SelectItem value="Georgia">Georgia</SelectItem>
+                            <SelectItem value="Verdana">Verdana</SelectItem>
+                            <SelectItem value="Times New Roman">
+                              Times New Roman
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
-                        <span className="text-gray-400 text-sm">Font Weight</span>
-                        <Select value={activeCard.descriptionWeight || "400"} onValueChange={(value) => updateCard({ descriptionWeight: value })}>
-                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white mt-1">
+                        <span className="text-gray-400 text-xs block mb-0.5">
+                          Font Weight
+                        </span>
+                        <Select
+                          value={card.descriptionWeight}
+                          onValueChange={(value) =>
+                            updateCard({ descriptionWeight: value })
+                          }
+                        >
+                          <SelectTrigger className="bg-gray-700/80 border-gray-600/70 text-white h-9 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="300">Light</SelectItem>
                             <SelectItem value="400">Normal</SelectItem>
                             <SelectItem value="500">Medium</SelectItem>
                             <SelectItem value="600">Semibold</SelectItem>
                             <SelectItem value="700">Bold</SelectItem>
+                            <SelectItem value="800">ExtraBold</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <span className="text-gray-400 text-sm">Font Size</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[activeCard.descriptionSize || 14]}
-                            onValueChange={([value]) => updateCard({ descriptionSize: value })}
-                            min={10}
-                            max={32}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.descriptionSize || 14}px</span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 text-sm">Text Alignment</span>
-                        <div className="flex gap-1 mt-1">
-                          {[
-                            { icon: AlignLeft, value: "left" },
-                            { icon: AlignCenter, value: "center" },
-                            { icon: AlignRight, value: "right" },
-                            { icon: AlignJustify, value: "justify" }
-                          ].map(({ icon: Icon, value }) => (
-                            <button
-                              key={value}
-                              onClick={() => updateCard({ descriptionAlign: value })}
-                              className={`p-2 rounded border ${
-                                activeCard.descriptionAlign === value 
-                                  ? "bg-purple-600 border-purple-500" 
-                                  : "bg-gray-700 border-gray-600 hover:bg-gray-600"
-                              } transition-colors`}
-                            >
-                              <Icon className="w-4 h-4 text-white" />
-                            </button>
-                          ))}
-                        </div>
+                    <LabeledSlider
+                      label="Font Size"
+                      value={card.descriptionSize!}
+                      onValueChange={(val) =>
+                        updateCard({ descriptionSize: val })
+                      }
+                      min={8}
+                      max={40}
+                      unit="px"
+                    />
+                    <div>
+                      <span className="text-gray-400 text-xs block mb-1">
+                        Alignment
+                      </span>
+                      <div className="flex gap-1">
+                        {[
+                          {
+                            icon: AlignLeft,
+                            value: "left",
+                            label: "Align left",
+                          },
+                          {
+                            icon: AlignCenter,
+                            value: "center",
+                            label: "Align center",
+                          },
+                          {
+                            icon: AlignRight,
+                            value: "right",
+                            label: "Align right",
+                          },
+                          {
+                            icon: AlignJustify,
+                            value: "justify",
+                            label: "Justify text",
+                          },
+                        ].map(({ icon: Icon, value, label }) => (
+                          <Button
+                            key={value}
+                            onClick={() =>
+                              updateCard({
+                                descriptionAlign:
+                                  value as CardSettings["descriptionAlign"],
+                              })
+                            }
+                            variant={
+                              card.descriptionAlign === value
+                                ? "secondary"
+                                : "outline"
+                            }
+                            size="icon"
+                            className={`h-8 w-8 ${card.descriptionAlign === value ? "bg-purple-600/80 border-purple-500/70" : "bg-gray-700/70 border-gray-600/60 hover:bg-gray-600/80"}`}
+                            aria-label={label}
+                            aria-pressed={card.descriptionAlign === value}
+                          >
+                            <Icon className="w-3.5 h-3.5 text-white" />
+                          </Button>
+                        ))}
                       </div>
                     </div>
                   </div>
                 </div>
               )}
-
               {activeTool === "effects" && (
-                <div className="space-y-6">
-                  {/* Advanced Effects Header */}
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-pink-400" />
-                    <span className="text-white font-medium">Advanced Effects</span>
+                <div className="space-y-5">
+                  <SectionHeader
+                    icon={RotateCcw}
+                    title="Transform"
+                    iconColorClass="text-pink-400"
+                  />
+                  <div className="bg-gray-800/50 p-3.5 rounded-xl space-y-3">
+                    <LabeledSlider
+                      label="Rotation"
+                      value={card.rotation!}
+                      onValueChange={(val) => updateCard({ rotation: val })}
+                      min={-180}
+                      max={180}
+                      unit="°"
+                    />
+                    <LabeledSlider
+                      label="Scale X"
+                      value={card.scaleX! * 100}
+                      onValueChange={(val) => updateCard({ scaleX: val / 100 })}
+                      min={25}
+                      max={250}
+                      unit="%"
+                    />{" "}
+                    {/* Adjusted range */}
+                    <LabeledSlider
+                      label="Scale Y"
+                      value={card.scaleY! * 100}
+                      onValueChange={(val) => updateCard({ scaleY: val / 100 })}
+                      min={25}
+                      max={250}
+                      unit="%"
+                    />{" "}
+                    {/* Adjusted range */}
                   </div>
 
-                  {/* Transform */}
-                  <div className="bg-gray-800/50 p-4 rounded-xl space-y-4">
-                    <span className="text-white font-medium flex items-center gap-2">
-                      <RotateCcw className="w-4 h-4" />
-                      Transform
-                    </span>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-gray-400 text-sm">Rotation</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[activeCard.rotation || 0]}
-                            onValueChange={([value]) => updateCard({ rotation: value })}
-                            min={-180}
-                            max={180}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.rotation || 0}°</span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 text-sm">Scale X</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Slider
-                            value={[((activeCard.scaleX || 1) * 100)]}
-                            onValueChange={([value]) => updateCard({ scaleX: value / 100 })}
-                            min={50}
-                            max={200}
-                            className="flex-1"
-                          />
-                          <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.scaleX || 1}x</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-400 text-sm">Scale Y</span>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Slider
-                          value={[((activeCard.scaleY || 1) * 100)]}
-                          onValueChange={([value]) => updateCard({ scaleY: value / 100 })}
-                          min={50}
-                          max={200}
-                          className="flex-1"
-                        />
-                        <span className="text-purple-400 font-medium min-w-[40px]">{activeCard.scaleY || 1}x</span>
-                      </div>
-                    </div>
+                  <SectionHeader
+                    icon={Circle}
+                    title="Filters"
+                    iconColorClass="text-pink-400"
+                  />
+                  <div className="bg-gray-800/50 p-3.5 rounded-xl space-y-3">
+                    <LabeledSlider
+                      label="Blur"
+                      value={card.blur!}
+                      onValueChange={(val) => updateCard({ blur: val })}
+                      max={30}
+                      step={0.1}
+                      unit="px"
+                    />{" "}
+                    {/* Increased max */}
+                    <LabeledSlider
+                      label="Brightness"
+                      value={card.brightness!}
+                      onValueChange={(val) => updateCard({ brightness: val })}
+                      min={0}
+                      max={200}
+                      unit="%"
+                    />
+                    <LabeledSlider
+                      label="Contrast"
+                      value={card.contrast!}
+                      onValueChange={(val) => updateCard({ contrast: val })}
+                      min={0}
+                      max={200}
+                      unit="%"
+                    />
+                    <LabeledSlider
+                      label="Saturation"
+                      value={card.saturation!}
+                      onValueChange={(val) => updateCard({ saturation: val })}
+                      min={0}
+                      max={200}
+                      unit="%"
+                    />
                   </div>
-
-                  {/* Filters */}
-                  <div className="bg-gray-800/50 p-4 rounded-xl space-y-4">
-                    <span className="text-white font-medium flex items-center gap-2">
-                      <Circle className="w-4 h-4" />
-                      Filters
-                    </span>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400 text-sm">Blur</span>
-                          <span className="text-purple-400 font-medium text-sm">{activeCard.blur || 0}px</span>
-                        </div>
-                        <Slider
-                          value={[activeCard.blur || 0]}
-                          onValueChange={([value]) => updateCard({ blur: value })}
-                          max={20}
-                          step={0.1}
-                          className="mt-1"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400 text-sm">Brightness</span>
-                          <span className="text-purple-400 font-medium text-sm">{activeCard.brightness || 100}%</span>
-                        </div>
-                        <Slider
-                          value={[activeCard.brightness || 100]}
-                          onValueChange={([value]) => updateCard({ brightness: value })}
-                          min={0}
-                          max={200}
-                          className="mt-1"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400 text-sm">Contrast</span>
-                          <span className="text-purple-400 font-medium text-sm">{activeCard.contrast || 100}%</span>
-                        </div>
-                        <Slider
-                          value={[activeCard.contrast || 100]}
-                          onValueChange={([value]) => updateCard({ contrast: value })}
-                          min={0}
-                          max={200}
-                          className="mt-1"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400 text-sm">Saturation</span>
-                          <span className="text-purple-400 font-medium text-sm">{activeCard.saturation || 100}%</span>
-                        </div>
-                        <Slider
-                          value={[activeCard.saturation || 100]}
-                          onValueChange={([value]) => updateCard({ saturation: value })}
-                          min={0}
-                          max={200}
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Reset Button */}
-                  <Button 
-                    onClick={() => updateCard({ 
-                      rotation: 0, 
-                      scaleX: 1, 
-                      scaleY: 1, 
-                      blur: 0, 
-                      brightness: 100, 
-                      contrast: 100, 
-                      saturation: 100 
-                    })}
-                    className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-medium py-3 rounded-xl"
+                  <Button
+                    onClick={() =>
+                      updateCard({
+                        rotation: 0,
+                        scaleX: 1,
+                        scaleY: 1,
+                        blur: 0,
+                        brightness: 100,
+                        contrast: 100,
+                        saturation: 100,
+                      })
+                    }
+                    variant="destructive" // More appropriate variant
+                    className="w-full bg-gradient-to-r from-red-600/80 to-orange-500/80 hover:from-red-700/90 hover:to-orange-600/90 text-white font-medium py-2.5 rounded-lg text-sm" // Adjusted style
                   >
                     Reset All Effects
                   </Button>
                 </div>
               )}
-
               {activeTool === "presets" && (
-                <div className="space-y-6">
-                  {/* Smart Presets */}
-                  <span className="text-white font-medium">Smart Presets</span>
-                  
-                  <div className="space-y-4">
+                <div className="space-y-5">
+                  <SectionHeader
+                    icon={Settings}
+                    title="Smart Presets"
+                    iconColorClass="text-purple-300"
+                  />
+                  <div className="space-y-3">
                     {[
                       {
                         name: "Glassmorphism",
-                        description: "Modern",
+                        description: "Modern frosted glass",
                         gradient: "from-white/10 to-white/5",
                         config: {
-                          bgGradientFrom: "#ffffff20",
-                          bgGradientTo: "#ffffff10",
-                          cardBorderRadius: { topLeft: "20", topRight: "20", bottomLeft: "20", bottomRight: "20", unit: "px" },
-                          enableHoverEffects: true
-                        }
+                          bgGradientFrom: "rgba(255,255,255,0.15)",
+                          bgGradientTo: "rgba(255,255,255,0.05)",
+                          cardBorderRadius: {
+                            topLeft: "20",
+                            topRight: "20",
+                            bottomLeft: "20",
+                            bottomRight: "20",
+                            unit: "px",
+                          },
+                          enableHoverEffects: true,
+                          cardOpacity: 85,
+                          shadowColor: "#000000",
+                          shadowOpacity: "0.1",
+                          shadowSettings: {
+                            x: "0",
+                            y: "8",
+                            blur: "32",
+                            spread: "0",
+                          },
+                        },
                       },
                       {
                         name: "Neon Glow",
-                        description: "Vibrant",
+                        description: "Vibrant and energetic",
                         gradient: "from-purple-600 to-blue-600",
                         config: {
                           bgGradientFrom: "#8b5cf6",
                           bgGradientTo: "#3b82f6",
+                          cardOpacity: 100,
                           shadowColor: "#8b5cf6",
-                          enableAnimations: true
-                        }
+                          shadowOpacity: "0.4",
+                          shadowSettings: {
+                            x: "0",
+                            y: "0",
+                            blur: "25px",
+                            spread: "2px",
+                          },
+                          enableAnimations: true,
+                          titleFont: "Georgia",
+                          titleWeight: "700",
+                          cardBorderRadius: {
+                            topLeft: "16",
+                            topRight: "16",
+                            bottomLeft: "16",
+                            bottomRight: "16",
+                            unit: "px",
+                          },
+                        },
                       },
                       {
                         name: "Gradient Dream",
-                        description: "Gradient",
+                        description: "Smooth color transitions",
                         gradient: "from-pink-500 to-violet-600",
                         config: {
                           bgGradientFrom: "#ec4899",
                           bgGradientTo: "#8b5cf6",
-                          cardBorderRadius: { topLeft: "16", topRight: "16", bottomLeft: "16", bottomRight: "16", unit: "px" }
-                        }
+                          cardOpacity: 100,
+                          cardBorderRadius: {
+                            topLeft: "16",
+                            topRight: "16",
+                            bottomLeft: "16",
+                            bottomRight: "16",
+                            unit: "px",
+                          },
+                          gradientAngle: 45,
+                          shadowColor: "#000000",
+                          shadowOpacity: "0.15",
+                          shadowSettings: {
+                            x: "0",
+                            y: "6",
+                            blur: "12",
+                            spread: "0",
+                          },
+                        },
                       },
                       {
                         name: "Minimal Clean",
-                        description: "Minimal",
-                        gradient: "from-white to-gray-50",
+                        description: "Simple and elegant",
+                        gradient: "from-gray-100 to-gray-200",
                         config: {
-                          bgGradientFrom: "#ffffff",
-                          bgGradientTo: "#f9fafb",
-                          cardBorderRadius: { topLeft: "8", topRight: "8", bottomLeft: "8", bottomRight: "8", unit: "px" },
-                          shadowColor: "#00000020"
-                        }
-                      }
+                          bgGradientFrom: "#f3f4f6",
+                          bgGradientTo: "#e5e7eb",
+                          cardOpacity: 100,
+                          cardBorderRadius: {
+                            topLeft: "8",
+                            topRight: "8",
+                            bottomLeft: "8",
+                            bottomRight: "8",
+                            unit: "px",
+                          },
+                          shadowColor: "#000000",
+                          shadowOpacity: "0.08",
+                          shadowSettings: {
+                            x: "0",
+                            y: "4",
+                            blur: "6",
+                            spread: "-1",
+                          },
+                        },
+                      },
                     ].map((preset, index) => (
                       <button
                         key={index}
                         onClick={() => updateCard(preset.config)}
-                        className="w-full p-4 bg-gray-800 border border-gray-600 rounded-xl text-left hover:border-purple-500 transition-colors group"
+                        className="w-full p-3.5 bg-gray-800/60 border border-gray-600/50 rounded-xl text-left hover:border-purple-500/70 transition-colors group focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 focus:ring-offset-gray-800"
+                        title={`Apply preset: ${preset.name} - ${preset.description}`}
+                        aria-label={`Apply preset: ${preset.name}`}
                       >
-                        <div className="flex items-center gap-3">
-                          <Sparkles className="w-5 h-5 text-purple-400" />
+                        <div className="flex items-center gap-2.5">
+                          <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0" />
                           <div className="flex-1">
-                            <div className="text-white font-medium">{preset.name}</div>
-                            <div className="text-gray-400 text-sm">{preset.description}</div>
+                            <div className="text-white font-medium text-sm">
+                              {preset.name}
+                            </div>
+                            <div className="text-gray-400 text-xs">
+                              {preset.description}
+                            </div>
                           </div>
                         </div>
-                        <div 
-                          className={`w-full h-8 rounded-lg mt-3 bg-gradient-to-r ${preset.gradient}`}
+                        <div
+                          className={`w-full h-6 rounded-md mt-2.5 bg-gradient-to-r ${preset.gradient}`}
+                          aria-hidden="true"
                         ></div>
                       </button>
                     ))}
                   </div>
 
-                  {/* Quick Actions */}
-                  <div className="space-y-3">
-                    <span className="text-white font-medium">Quick Actions</span>
-                    <Button 
-                      onClick={() => {
-                        // Randomize logic here
-                        const colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dda0dd", "#98d8c8"];
-                        const randomFrom = colors[Math.floor(Math.random() * colors.length)];
-                        const randomTo = colors[Math.floor(Math.random() * colors.length)];
-                        updateCard({
-                          bgGradientFrom: randomFrom,
-                          bgGradientTo: randomTo,
-                          rotation: Math.random() * 20 - 10,
-                          cardBorderRadius: {
-                            topLeft: (Math.random() * 30 + 10).toString(),
-                            topRight: (Math.random() * 30 + 10).toString(),
-                            bottomLeft: (Math.random() * 30 + 10).toString(),
-                            bottomRight: (Math.random() * 30 + 10).toString(),
-                            unit: "px"
-                          }
-                        });
-                      }}
-                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Randomize
-                    </Button>
-                  </div>
+                  <SectionHeader
+                    icon={Sparkles}
+                    title="Quick Actions"
+                    iconColorClass="text-purple-300"
+                  />
+                  <Button
+                    onClick={() => {
+                      const colors = [
+                        "#ff6b6b",
+                        "#4ecdc4",
+                        "#45b7d1",
+                        "#96ceb4",
+                        "#ffeaa7",
+                        "#dda0dd",
+                        "#98d8c8",
+                        "#f8a5c2",
+                        "#6a89cc",
+                        "#f5cd79",
+                        "#f78fb3",
+                        "#ff7f50",
+                        "#ffdab9",
+                        "#b2f7ef",
+                      ];
+                      const randomFrom =
+                        colors[Math.floor(Math.random() * colors.length)];
+                      let randomTo =
+                        colors[Math.floor(Math.random() * colors.length)];
+                      while (randomTo === randomFrom) {
+                        // Ensure different colors
+                        randomTo =
+                          colors[Math.floor(Math.random() * colors.length)];
+                      }
+                      const randomRadius = (
+                        Math.floor(Math.random() * 45) + 5
+                      ).toString(); // 5-50px
+                      updateCard({
+                        bgGradientFrom: randomFrom,
+                        bgGradientTo: randomTo,
+                        gradientAngle: Math.floor(Math.random() * 360),
+                        rotation: Math.floor(Math.random() * 20 - 10), // -10 to 10 deg
+                        cardBorderRadius: {
+                          topLeft: randomRadius,
+                          topRight: randomRadius,
+                          bottomLeft: randomRadius,
+                          bottomRight: randomRadius,
+                          unit: "px",
+                        },
+                        cardOpacity: Math.floor(Math.random() * 20) + 80, // 80-100%
+                      });
+                    }}
+                    className="w-full bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-700/90 hover:to-pink-700/90 text-white font-medium py-2.5 rounded-lg text-sm flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Randomize Style
+                  </Button>
                 </div>
               )}
             </div>
